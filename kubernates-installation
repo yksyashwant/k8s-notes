@@ -1,0 +1,157 @@
+
+Prerequisite
+  3 virtual machines it will good to understand
+  Master should have minimum 2 cpu and 2 gb RAM
+  set hostname to the VMs
+  ssh access with sudo previligd 
+
+
+
+
+# Disable Swap
+sudo swapoff -a
+sudo sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+sudo reboot
+sudo apt-get update
+
+
+# Docker installation 
+
+  sudo apt install docker.io
+
+#Update the apt package index and install packages needed to use the Kubernetes apt repository:
+
+  sudo apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
+
+#Add the Docker official GPG Key
+
+  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+
+#Add the Docker APT repository
+
+echo   "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu \
+  $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+#Update the System Packages
+
+  sudo apt-get update -y
+
+#Add the Docker Daemon configurations to use systemd as the cgroup driver.
+
+cat <<EOF | sudo tee /etc/docker/daemon.json
+{
+  "exec-opts": ["native.cgroupdriver=systemd"],
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "100m"
+  },
+  "storage-driver": "overlay2"
+}
+EOF
+
+#Add the docker user in group and give permission for docker.sock
+
+  sudo usermod -aG docker $USER
+
+#Change the docker.sock permission
+
+  sudo chmod 666 /var/run/docker.sock
+
+#Start the Docker service if not started
+
+  sudo systemctl start docker.service
+
+#To check the docker service status
+
+  sudo systemctl status docker.service
+
+#Enable Docker service at startup
+
+  sudo systemctl enable docker.service
+
+#Restart the Docker service
+
+  sudo systemctl restart docker
+
+# This step is already taken care --Update the apt package index and install packages needed to use the Kubernetes apt repository
+
+  sudo apt-get install -y apt-transport-https ca-certificates curl
+
+#Download the Google Cloud public signing key:
+
+sudo curl -fsSLo /usr/share/keyrings/kubernetes-archive-keyring.gpg https://packages.cloud.google.com/apt/doc/apt-key.gpg
+
+#Add the Kubernetes apt repository:
+
+echo "deb [signed-by=/usr/share/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee /etc/apt/sources.list.d/kubernetes.list
+
+# Update apt package index, install kubelet, kubeadm and kubectl, and pin their version:
+
+sudo apt-get update
+sudo apt-get install -y kubelet kubeadm kubectl
+sudo apt-mark hold kubelet kubeadm kubectl
+
+# Restart the kubelet service
+sudo systemctl restart kubelet
+
+
+# This step is optional identify master and worker node
+
+sudo hostnamectl set-hostname worker01
+
+sudo hostnamectl set-hostname master-node
+
+# Initialize the Master node using kubeadm (only on  Master Node)
+
+  #https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/
+
+sudo kubeadm init --pod-network-cidr 10.0.0.0/16
+
+# output for the above command 
+
+   mkdir -p $HOME/.kube
+  sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+  sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+Alternatively, if you are the root user, you can run:
+
+  export KUBECONFIG=/etc/kubernetes/admin.conf
+
+You should now deploy a pod network to the cluster.
+Run "kubectl apply -f [podnetwork].yaml" with one of the options listed at:
+  https://kubernetes.io/docs/concepts/cluster-administration/addons/
+
+Then you can join any number of worker nodes by running the following on each as root:
+
+kubeadm join 172.31.9.78:6443 --token 041q76.62mrii4dn4d02504 --discovery-token-ca-cert-hash sha256:a28095b30312beecc86e12fe3dd56a4788576862356b0fcabeaedb0c38c1ae10 
+
+
+# From the above outputs keep the token to join the worker nodes
+
+#Create new ‘.kube’ configuration directory and copy the configuration ‘admin.conf’ from ‘/etc/kubernetes’ directory.
+  
+     mkdir -p $HOME/.kube
+  sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+  sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+
+  #To check kubeadm version.
+
+kubeadm version
+
+# Configure Pod Network and Verify Pod namespaces this step should be perform on master and worker nodes
+
+# https://kubernetes.io/docs/concepts/cluster-administration/addons/
+
+#Install the any network plugin to communicate master and worker nodes.
+
+$ kubectl apply -f "https://cloud.weave.works/k8s/net?k8s-version=$(kubectl version | base64 | tr -d '\n')"
+
+
+## Join Worker Node to the Cluster
+
+  kubeadm join 172.31.9.78:6443 --token 041q76.62mrii4dn4d02504 --discovery-token-ca-cert-hash sha256:a28095b30312beecc86e12fe3dd56a4788576862356b0fcabeaedb0c38c1ae10 
+
+#label the nodes
+
+kubectl label node worker02 node-role.kubernetes.io/worker=worker
